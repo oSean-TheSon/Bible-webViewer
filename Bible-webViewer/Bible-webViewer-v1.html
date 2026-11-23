@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bible Viewer</title>
+  <style>
+    :root {
+      --desktop:#5d7c7c; --silver:#c0c0c0; --light:#fff;
+      --dark:#808080; --black:#000; --navy:#000080;
+      --accent:#a84f3e; --accent-dark:#71372f; --paper:#e8dfc8;
+    }
+    * { box-sizing:border-box; }
+    html,body { width:100%; min-height:100%; margin:0; }
+    body {
+      min-height:100vh; overflow:hidden; background:var(--desktop);
+      color:var(--black); font:14px Tahoma,Arial,sans-serif;
+    }
+    button,select,input,textarea { font:inherit; color:var(--black); }
+    button {
+      padding:5px 12px; color:#263b35; background:var(--paper);
+      border:1px solid #7c7463; border-radius:4px;
+      box-shadow:1px 1px 0 #fff8,2px 2px 0 #736c5d; cursor:pointer;
+    }
+    button:active { transform:translate(1px,1px); box-shadow:inset 1px 1px 2px #736c5d; }
+    button:disabled { color:var(--dark); cursor:default; }
+    select,input[type="text"],input[type="search"],textarea {
+      padding:5px; background:#fff; border:2px inset var(--light);
+    }
+    .desktop {
+      position:relative; width:100%; height:100vh; min-height:420px;
+      padding:42px 12px 42px; background:var(--desktop);
+    }
+    .clock-ribbon {
+      position:absolute; z-index:2; top:0; left:0; width:100%; height:36px;
+      box-sizing:border-box; padding-right:12px;
+      display:flex; align-items:center; justify-content:flex-end;
+      background:#3f6060; border-bottom:1px solid #789090;
+      pointer-events:none;
+    }
+    .ribbon-clock {
+      min-width:74px; height:30px; padding:2px 8px; text-align:center;
+      font-size:12px; background:var(--silver);
+      border:2px outset #fff; border-radius:2px; box-shadow:none;
+      pointer-events:auto;
+    }
+
+    .desktop-icons {
+      position:absolute; z-index:1; top:42px; left:12px;
+      display:flex; flex-direction:column; gap:5px; width:82px;
+      max-height:calc(100vh - 60px); overflow:auto;
+    }
+    .desktop-icon-button {
+      width:76px; min-width:0; min-height:60px; padding:3px 2px;
+      color:#fff; text-align:center; font-size:11px; line-height:1.2;
+      text-shadow:1px 1px #333; background:transparent;
+      border:1px solid transparent; border-radius:0; box-shadow:none;
+    }
+    .desktop-icon-button:hover,.desktop-icon-button:focus-visible {
+      color:#fff; background:var(--accent-dark); border:1px dotted #fff; outline:none;
+    }
+    .desktop-icon-art {
+      display:block; margin:0 auto 3px; font-size:27px;
+      line-height:30px; text-shadow:1px 1px #333;
+    }
+    .window {
+      position:absolute; top:42px; left:125px;
+      width:calc(100% - 474px); height:calc(100vh - 100px);
+      min-width:300px; min-height:260px; max-width:calc(100% - 120px);
+      max-height:calc(100vh - 58px); overflow:hidden; resize:both;
+      display:flex; flex-direction:column; background:var(--silver);
+      border:2px outset var(--light); box-shadow:3px 3px 0 #0005;
+    }
+    .titlebar {
+      flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+      padding:7px 9px; color:var(--paper); font-weight:bold;
+      background:linear-gradient(90deg,var(--accent-dark),var(--accent));
+      border-bottom:3px solid #d19a72;
+    }
+    .title-controls { display:flex; gap:3px; }
+    .title-controls span {
+      width:19px; height:19px; color:#000; line-height:16px; text-align:center;
+      background:var(--silver); border:2px outset #fff;
+    }
+    .menubar {
+      position:relative; z-index:3; flex:0 0 auto; display:flex; gap:2px;
+      padding:3px 5px; border-bottom:1px solid var(--dark);
+    }
+    .menu-wrap { position:relative; }
+    .menu-button {
+      padding:5px 10px; background:transparent; border:1px solid transparent;
+      border-radius:3px; box-shadow:none;
+    }
+    .menu-button:hover,.menu-button[aria-expanded="true"] {
+      background:var(--paper); border-color:var(--dark);
+    }
+    .dropdown {
+      position:absolute; top:100%; left:0; display:none; min-width:190px;
+      padding:3px; background:var(--silver); border:2px outset #fff;
+      box-shadow:2px 2px 3px #0005;
+    }
+    .dropdown.open { display:block; }
+    .dropdown button,.begin-menu button {
+      display:block; width:100%; padding:7px 10px; text-align:left;
+      background:transparent; border:1px solid transparent;
+      border-radius:2px; box-shadow:none;
+    }
+    .dropdown button:hover,.begin-menu button:hover {
+      color:#fff; background:var(--accent-dark);
+    }
+    .toolbar {
+      flex:0 0 auto; display:flex; flex-wrap:wrap; gap:5px;
+      padding:8px; border-bottom:2px groove #fff;
+    }
+    .toolbar button { min-width:85px; }
+    .content {
+      flex:1; min-height:0; overflow:auto; margin:12px; padding:18px;
+      background:#fff; border:2px inset #fff;
+    }
+    .statusbar {
+      flex:0 0 auto; min-height:26px; margin:0 5px 5px; padding:5px 8px;
+      font-size:12px; background:var(--silver); border:2px inset #fff;
+    }
+    h1,h2,h3 { margin-top:0; }
+    h1 { font-size:22px; } h2 { font-size:19px; }
+    .muted { color:#444; }
+    .control-row {
+      display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+      margin-bottom:12px; padding:10px; background:var(--silver);
+      border:2px groove #fff;
+    }
+    .verse-card {
+      max-width:720px; margin:28px auto; padding:24px;
+      background:#fffef4; border:2px groove #fff; box-shadow:2px 2px 0 #bbb;
+    }
+    .verse-reference { margin-bottom:12px; color:var(--navy); font-weight:bold; }
+    .verse-text { font:21px/1.6 Georgia,"Times New Roman",serif; }
+    .chapter-text {
+      max-width:760px; margin:18px auto;
+      font:17px/1.75 Georgia,"Times New Roman",serif;
+    }
+    .chapter-text p { margin:0 0 9px; }
+    .verse-number {
+      margin-right:4px; color:var(--navy);
+      font:bold 12px Tahoma,Arial,sans-serif; vertical-align:super;
+    }
+    .verse-line { position:relative; padding:2px 4px; border-radius:3px; }
+    .verse-line.highlighted { background:#fff1a8; box-shadow:inset 3px 0 #d79c25; }
+    .verse-line.selected { outline:2px solid #a84f3e; }
+    .chapter-footer {
+      display:flex; justify-content:space-between; gap:8px; max-width:760px;
+      margin:18px auto 4px; padding-top:12px; border-top:1px solid #aaa;
+    }
+    .book-grid {
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(135px,1fr)); gap:6px;
+    }
+    .book-grid button { text-align:left; }
+    .result { padding:9px 4px; line-height:1.6; border-bottom:1px solid #ccc; }
+    .result-ref { color:var(--navy); font-weight:bold; }
+    .welcome { max-width:650px; margin:45px auto; text-align:center; }
+    .welcome p { line-height:1.6; }
+    .cloud-layout { display:grid; grid-template-columns:minmax(0,1fr) 230px; gap:12px; }
+    .cloud-side {
+      max-height:430px; overflow:auto; padding:10px; background:#f1f1f1;
+      border:2px inset #fff;
+    }
+    .cloud-side ul { margin-top:6px; padding-left:20px; }
+    canvas { max-width:100%; background:#fff; border:2px inset #fff; }
+    .stats-table { width:100%; border-collapse:collapse; }
+    .stats-table th,.stats-table td {
+      padding:6px; text-align:left; border:1px solid #999;
+    }
+    .stats-table th { background:var(--silver); }
+    .stats-scroll { max-height:330px; overflow:auto; border:1px solid #999; }
+    .notes-area { display:block; width:100%; min-height:260px; resize:vertical; }
+    .note-toolbar { display:flex; flex-wrap:wrap; gap:7px; margin:10px 0; }
+    .note-status { min-height:1.4em; color:#333; }
+    .taskbar {
+      position:absolute; z-index:4; right:0; bottom:0; left:0;
+      display:flex; align-items:center; gap:5px; height:40px; padding:4px;
+      background:var(--silver); border-top:2px outset #fff; box-shadow:0 -1px 2px #0003;
+    }
+    .begin-button {
+      display:flex; align-items:center; justify-content:center; gap:5px;
+      min-width:88px; height:30px; padding:2px 8px; font-weight:bold;
+      background:var(--silver);
+      border:2px outset #fff; border-radius:2px; box-shadow:none;
+    }
+    .begin-cross { color:#8b0000; font-size:21px; line-height:20px; }
+    .taskbar-app {
+      min-width:120px; max-width:230px; height:30px; overflow:hidden;
+      padding:3px 8px; text-align:left; text-overflow:ellipsis; white-space:nowrap;
+      font-size:12px; background:var(--silver); border:2px outset #fff;
+      border-radius:0; box-shadow:none;
+    }
+    .taskbar-spacer { flex:1; }
+    .taskbar-clock {
+      min-width:74px; height:30px; padding:6px 8px; text-align:center;
+      font-size:12px; background:var(--silver); border:2px inset #fff;
+    }
+    .begin-menu {
+      position:absolute; z-index:6; bottom:40px; left:4px; display:none;
+      width:245px; padding:4px; background:var(--silver);
+      border:2px outset #fff; box-shadow:2px 2px 5px #0006;
+    }
+    .begin-menu.open { display:block; }
+    .begin-menu-banner {
+      display:flex; align-items:center; gap:8px; min-height:46px;
+      margin-bottom:4px; padding:8px; color:#fff; font-weight:bold;
+      background:linear-gradient(90deg,var(--accent-dark),var(--accent));
+    }
+    .begin-menu-banner span:first-child { font-size:25px; }
+    .begin-menu-divider {
+      height:1px; margin:4px 2px; background:var(--dark); border-bottom:1px solid #fff;
+    }
+    .helper {
+      position:absolute; z-index:5; bottom:69px; right:24px;
+      display:flex; align-items:flex-end; gap:8px;
+    }
+    .helper-bubble {
+      display:none; max-width:230px; padding:10px; background:#fffef4;
+      border:2px outset #fff; box-shadow:2px 2px 4px #0006;
+      margin-bottom:75px; /* raises the bubble */
+    }
+    .helper-bubble.open { display:block; }
+    .cross-button {
+      position:relative; width:50px; height:58px; padding:0;
+      background:transparent; border:0; border-radius:0; box-shadow:none;
+      cursor:pointer; filter:drop-shadow(2px 2px 1px #333);
+    }
+    .cross-button::before {
+      position:absolute; top:5px; left:18px; width:14px; height:48px; content:"";
+      background:#8b5a2b; border:2px outset #d6b58b;
+    }
+    .cross-button::after {
+      position:absolute; top:17px; left:8px; width:34px; height:12px; content:"";
+      background:#8b5a2b; border:2px outset #d6b58b;
+    }
+    .helper-label {
+      color:#222; text-align:center; font-size:10px; text-shadow:1px 1px #fff;
+    }
+    @media(max-width:900px) {
+      .window { width:calc(100% - 274px); max-width:calc(100% - 120px); }
+      .helper { right:8px; }
+    }
+    @media(max-width:700px) {
+      .desktop { padding:8px 8px 42px; }
+      .desktop-icons { top:8px; left:5px; gap:3px; width:64px; }
+      .desktop-icon-button { width:62px; min-height:54px; font-size:10px; }
+      .desktop-icon-art { font-size:23px; line-height:26px; }
+      .window {
+        top:8px; left:72px; width:calc(100% - 82px); height:calc(100vh - 60px);
+        min-width:0; min-height:240px; max-width:calc(100% - 75px);
+        max-height:calc(100vh - 50px);
+      }
+      .content { margin:7px; padding:12px; }
+      .verse-text { font-size:18px; }
+      .cloud-layout { grid-template-columns:1fr; }
+      .cloud-side { max-height:150px; }
+      .toolbar { padding:5px; }
+      .toolbar button { min-width:70px; padding:4px 6px; }
+      .taskbar-app { min-width:70px; }
+      .helper { top:8px; right:8px; }
+    }
+    @media(max-width:460px) {
+      .desktop { padding-right:5px; padding-left:5px; }
+      .desktop-icons { width:55px; }
+      .desktop-icon-button { width:53px; font-size:9px; }
+      .desktop-icon-art { font-size:20px; }
+      .window { right:5px; left:62px; width:calc(100% - 67px); max-width:calc(100% - 67px); }
+      .menubar { padding-left:2px; }
+      .menu-button { padding:5px 6px; }
+      .taskbar-app { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="desktop">
+    <div class="clock-ribbon">
+      <button class="ribbon-clock" id="ribbonClock" type="button"
+        aria-label="Toggle clock display">8:88 ∞</button>
+    </div>
+    <div class="desktop-icons" aria-label="Bible Viewer shortcuts">
+      <button class="desktop-icon-button" data-action="home"><span class="desktop-icon-art" aria-hidden="true">📖</span>Bible Viewer</button>
+      <button class="desktop-icon-button" data-action="contents"><span class="desktop-icon-art" aria-hidden="true">📚</span>Contents Shortcut</button>
+      <button class="desktop-icon-button" data-action="read"><span class="desktop-icon-art" aria-hidden="true">📜</span>Read Shortcut</button>
+      <button class="desktop-icon-button" data-action="search"><span class="desktop-icon-art" aria-hidden="true">🔍</span>Search Shortcut</button>
+      <button class="desktop-icon-button" data-action="random"><span class="desktop-icon-art" aria-hidden="true">✝️</span>Random Verse Shortcut</button>
+      <button class="desktop-icon-button" data-action="cloud"><span class="desktop-icon-art" aria-hidden="true">☁️</span>Word Cloud Shortcut</button>
+      <button class="desktop-icon-button" data-action="stats"><span class="desktop-icon-art" aria-hidden="true">📊</span>Statistics Shortcut</button>
+      <button class="desktop-icon-button" data-action="notepad"><span class="desktop-icon-art" aria-hidden="true">📝</span>Notepad Shortcut</button>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <span>📖 Bible Viewer</span>
+        <div class="title-controls" aria-hidden="true"><span></span><span></span><span>✚</span></div>
+      </div>
+      <nav class="menubar" aria-label="Main menu">
+        <div class="menu-wrap">
+          <button class="menu-button" data-menu="helpMenu" aria-expanded="false">Help</button>
+          <div class="dropdown" id="helpMenu"><button data-action="about">About Bible Viewer</button></div>
+        </div>
+        <div class="menu-wrap">
+          <button class="menu-button" data-menu="toolsMenu" aria-expanded="false">Tools</button>
+          <div class="dropdown" id="toolsMenu">
+            <button data-action="search">Search</button><button data-action="cloud">Word Cloud</button>
+            <button data-action="stats">Statistics</button><button data-action="notepad">Notepad</button>
+          </div>
+        </div>
+        <div class="menu-wrap">
+          <button class="menu-button" data-menu="viewMenu" aria-expanded="false">View</button>
+          <div class="dropdown" id="viewMenu">
+            <button data-action="contents">Contents</button><button data-action="read">Read</button>
+            <button data-action="random">Random Verse</button>
+          </div>
+        </div>
+        <div class="menu-wrap">
+          <button class="menu-button" data-menu="fileMenu" aria-expanded="false">File</button>
+          <div class="dropdown" id="fileMenu">
+            <button data-action="load">Load Bible folder…</button>
+            <button data-action="importNotes">Import notepad…</button>
+            <button data-action="home">Home — Random Verse</button>
+          </div>
+        </div>
+      </nav>
+      <div class="toolbar">
+        <button data-action="home">Home</button><button data-action="contents">Contents</button>
+        <button data-action="read">Read</button><button data-action="search">Search</button>
+        <button data-action="random">Random Verse</button><button data-action="cloud">Word Cloud</button>
+        <button data-action="stats">Statistics</button><button data-action="notepad">Notepad</button>
+      </div>
+      <main class="content" id="content"></main>
+      <div class="statusbar" id="status">Ready | No Bible folder loaded</div>
+    </div>
+
+    <div class="helper">
+      <div class="helper-bubble open" id="helperBubble">
+        Hi! Choose a folder containing Bible books in .json format from your files to get started. You can find KJV Bible files here:
+        <a href="https://github.com/oSean-TheSon/Bibles/tree/main/kjv_bible.books.json"
+           target="_blank" rel="noopener noreferrer">KJV Bible files</a>
+      </div>
+      <div>
+        <button class="cross-button" id="helperButton"
+                type="button" aria-label="Toggle helper" aria-expanded="true"></button>
+        <div class="helper-label">Helper</div>
+      </div>
+    </div>
+
+
+    <div class="begin-menu" id="beginMenu" aria-label="Begin menu">
+      <div class="begin-menu-banner"><span aria-hidden="true">✝</span><span>Bible Desktop</span></div>
+      <button data-action="home">📖 Bible Viewer</button>
+      <button data-action="contents">📚 Contents</button>
+      <button data-action="read">📜 Read</button>
+      <button data-action="search">🔍 Search</button>
+      <button data-action="random">✝️ Random Verse</button>
+      <button data-action="cloud">☁️ Word Cloud</button>
+      <button data-action="stats">📊 Statistics</button>
+      <button data-action="notepad">📝 Notepad</button>
+      <div class="begin-menu-divider"></div>
+      <button data-action="load">📂 Load Bible folder…</button>
+      <button data-action="importNotes">Import notepad…</button>
+      <button data-action="about">About Bible Viewer</button>
+    </div>
+    <div class="taskbar">
+      <button class="begin-button" id="beginButton" aria-expanded="false">
+        <span>Begin</span><span class="begin-cross" aria-hidden="true">✝</span>
+      </button>
+      <button class="taskbar-app" data-action="home">📖 Bible Viewer</button>
+      <div class="taskbar-spacer"></div>
+
+    </div>
+  </div>
+
+  <input id="folderPicker" type="file" webkitdirectory multiple hidden>
+  <input id="notesPicker" type="file" accept=".txt,.json,text/plain,application/json" hidden>
+
+  <script>
+    "use strict";
+    const BOOKS = [
+      "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth",
+      "1Samuel","2Samuel","1Kings","2Kings","1Chronicles","2Chronicles","Ezra","Nehemiah",
+      "Esther","Job","Psalms","Proverbs","Ecclesiastes","SongofSolomon","Isaiah","Jeremiah",
+      "Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah",
+      "Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke",
+      "John","Acts","Romans","1Corinthians","2Corinthians","Galatians","Ephesians",
+      "Philippians","Colossians","1Thessalonians","2Thessalonians","1Timothy","2Timothy",
+      "Titus","Philemon","Hebrews","James","1Peter","2Peter","1John","2John","3John","Jude","Revelation"
+    ];
+    const STOP_WORDS = new Set(
+      ("a an the and or but if then than to of in on at by for from with without as is are was were " +
+       "be been being it its this that these those i me my we us our you your he him his she her " +
+       "they them their who whom which what when where why how not no do does did have has had " +
+       "will would can could shall should may might must said unto into upon out up down so also " +
+       "all any each every some such more most other over under again there here now yet let one " +
+       "two thou thee thy thine ye hath doth o ").split(/\s+/)
+    );
+    const content=document.getElementById("content");
+    const status=document.getElementById("status");
+    const folderPicker=document.getElementById("folderPicker");
+    const notesPicker=document.getElementById("notesPicker");
+    const beginButton=document.getElementById("beginButton");
+    const beginMenu=document.getElementById("beginMenu");
+    const ribbonClock=document.getElementById("ribbonClock");
+    let showLocalTime=false;
+    function updateRibbonClock() {
+      ribbonClock.textContent=showLocalTime
+        ? new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})
+        : "8:88 ∞";
+    }
+    ribbonClock.addEventListener("click",()=>{
+      showLocalTime=!showLocalTime;
+      updateRibbonClock();
+    });
+    updateRibbonClock();
+    setInterval(()=>{if(showLocalTime) updateRibbonClock();},1000);
+
+    let bible={};
+    let currentBook="Genesis", currentChapter=0;
+    let notesText=localStorage.getItem("bibleViewerNotes")||"";
+    let notesHandle=null;
+    let selectedVerse=null;
+    let highlights=loadHighlights();
+
+    function esc(value) {
+      return String(value).replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      })[c]);
+    }
+    function loadHighlights() {
+      try { return JSON.parse(localStorage.getItem("bibleViewerHighlights")||"{}"); }
+      catch { return {}; }
+    }
+    function saveHighlights() {
+      localStorage.setItem("bibleViewerHighlights",JSON.stringify(highlights));
+    }
+    function verseKey(book,chapter,verse) { return `${book}|${chapter}|${verse}`; }
+    function loadedBooks() { return BOOKS.filter(book=>bible[book]); }
+    function setStatus(view,detail="") {
+      status.textContent=`Ready | ${loadedBooks().length} book(s) loaded | ${view}`+
+        (detail?` | ${detail}`:"");
+    }
+    function showView(html) { content.innerHTML=html; content.scrollTop=0; }
+    function requireBible() {
+      if(loadedBooks().length) return true;
+      alert("Load the Bible folder first using File → Load Bible folder.");
+      return false;
+    }
+    function renderHome() {
+      if(!loadedBooks().length) {
+        showView(`<div class="welcome"><h1>Welcome to Bible Viewer</h1>
+          <p>Read, search, and explore the Bible.</p>
+          <p>Choose <b>File → Load Bible folder…</b> and select the folder containing Bible JSON files.</p>
+          <button data-action="load">Load Bible folder…</button></div>`);
+        setStatus("Home");
+      } else showRandomVerse();
+    }
+    async function loadBible(files) {
+      bible={};
+      for(const file of files) {
+        const name=file.name.replace(/\.json$/i,"");
+        if(!BOOKS.includes(name)) continue;
+        try {
+          const data=JSON.parse(await file.text());
+          if(data&&Array.isArray(data.chapters)) bible[name]=data;
+        } catch(error) { console.warn(`Could not read ${file.name}:`,error); }
+      }
+      if(loadedBooks().length) renderHome();
+      else {
+        showView(`<h2>No Bible books found</h2><p>Select a folder containing files such as <code>Genesis.json</code>.</p>`);
+        setStatus("No books found");
+      }
+    }
+    folderPicker.addEventListener("change",()=>{
+      if(folderPicker.files.length) loadBible([...folderPicker.files]);
+      folderPicker.value="";
+    });
+    function getVerses(book) {
+      return (bible[book]?.chapters||[]).flatMap((chapter,index)=>
+        (chapter.verses||[]).map(verse=>({
+          book,chapter:chapter.chapter??index+1,verse:verse.verse??"?",
+          text:String(verse.text??"")
+        }))
+      );
+    }
+    function showRandomVerse() {
+      if(!requireBible()) return;
+      const all=loadedBooks().flatMap(getVerses);
+      if(!all.length) { showView("<h2>No verses found</h2>"); return; }
+      const verse=all[Math.floor(Math.random()*all.length)];
+      showView(`<div class="verse-card"><h2>Random Bible Verse</h2>
+        <div class="verse-reference">${esc(verse.book)} ${esc(verse.chapter)}:${esc(verse.verse)}</div>
+        <div class="verse-text">${esc(verse.text)}</div>
+        <p style="margin-top:24px"><button data-action="random">Another verse</button></p></div>`);
+      setStatus("Random Verse",`${verse.book} ${verse.chapter}:${verse.verse}`);
+    }
+    function showContents() {
+      if(!requireBible()) return;
+      const old=loadedBooks().filter(book=>BOOKS.indexOf(book)<39);
+      const newer=loadedBooks().filter(book=>BOOKS.indexOf(book)>=39);
+      const buttons=books=>books.map(book=>`<button data-book="${esc(book)}">${esc(book)}</button>`).join("");
+      showView(`<h2>Table of Contents</h2><h3>Old Testament</h3>
+        <div class="book-grid">${buttons(old)}</div>
+        <h3 style="margin-top:20px">New Testament</h3><div class="book-grid">${buttons(newer)}</div>`);
+      content.querySelectorAll("[data-book]").forEach(button=>{
+        button.onclick=()=>openReader(button.dataset.book,0);
+      });
+      setStatus("Contents");
+    }
+    function openReader(book=currentBook,chapterIndex=currentChapter) {
+      if(!requireBible()) return;
+      const available=loadedBooks();
+      if(!bible[book]) book=available[0];
+      currentBook=book;
+      const chapters=bible[book].chapters||[];
+      currentChapter=Math.max(0,Math.min(chapterIndex,chapters.length-1));
+      const chapter=chapters[currentChapter]||{verses:[]};
+      const bookOptions=available.map(item=>
+        `<option value="${esc(item)}" ${item===book?"selected":""}>${esc(item)}</option>`).join("");
+      const chapterOptions=chapters.map((item,index)=>
+        `<option value="${index}" ${index===currentChapter?"selected":""}>${esc(item.chapter??index+1)}</option>`).join("");
+      const label=chapter.chapter??currentChapter+1;
+      showView(`<div class="control-row">
+        <label><b>Book:</b> <select id="bookSelect">${bookOptions}</select></label>
+        <label><b>Chapter:</b> <select id="chapterSelect">${chapterOptions}</select></label>
+        <button id="prevTop" ${currentChapter===0?"disabled":""}>◀ Previous</button>
+        <button id="nextTop" ${currentChapter>=chapters.length-1?"disabled":""}>Next ▶</button>
+        <span class="muted">Select a verse, then use Highlight / Remove highlight.</span></div>
+        <div class="control-row" aria-label="Verse highlighting controls">
+          <button id="highlightButton" disabled>Highlight selected verse</button>
+          <button id="removeHighlightButton" disabled>Remove highlight</button>
+          <button id="noteVerseButton" disabled>Add selected verse to notepad</button>
+        </div>
+        <div class="chapter-text"><h2>${esc(book)} ${esc(label)}</h2>
+        ${(chapter.verses||[]).map(verse=>{
+          const number=verse.verse??"";
+          const key=verseKey(book,label,number);
+          return `<p class="verse-line ${highlights[key]?"highlighted":""}"
+            data-verse-key="${esc(key)}" data-verse="${esc(number)}"
+            data-text="${esc(verse.text??"")}" tabindex="0">
+            <span class="verse-number">${esc(number)}</span>${esc(verse.text??"")}</p>`;
+        }).join("")}</div>
+        <div class="chapter-footer">
+          <button id="prevBottom" ${currentChapter===0?"disabled":""}>◀ Previous Chapter</button>
+          <span><b>${esc(book)} ${esc(label)}</b></span>
+          <button id="nextBottom" ${currentChapter>=chapters.length-1?"disabled":""}>Next Chapter ▶</button>
+        </div>`);
+      document.getElementById("bookSelect").onchange=e=>openReader(e.target.value,0);
+      document.getElementById("chapterSelect").onchange=e=>openReader(currentBook,Number(e.target.value));
+      ["prevTop","prevBottom"].forEach(id=>document.getElementById(id).onclick=()=>openReader(currentBook,currentChapter-1));
+      ["nextTop","nextBottom"].forEach(id=>document.getElementById(id).onclick=()=>openReader(currentBook,currentChapter+1));
+      content.querySelectorAll(".verse-line").forEach(line=>{
+        const select=()=>{
+          content.querySelectorAll(".verse-line.selected").forEach(el=>el.classList.remove("selected"));
+          line.classList.add("selected");
+          selectedVerse={key:line.dataset.verseKey,book,chapter:label,
+            verse:line.dataset.verse,text:line.dataset.text};
+          document.getElementById("highlightButton").disabled=false;
+          document.getElementById("removeHighlightButton").disabled=false;
+          document.getElementById("noteVerseButton").disabled=false;
+        };
+        line.addEventListener("click",select);
+        line.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" ") {e.preventDefault();select();}});
+      });
+      document.getElementById("highlightButton").onclick=()=>{
+        if(!selectedVerse)return;
+        highlights[selectedVerse.key]=true; saveHighlights();
+        openReader(currentBook,currentChapter);
+      };
+      document.getElementById("removeHighlightButton").onclick=()=>{
+        if(!selectedVerse)return;
+        delete highlights[selectedVerse.key]; saveHighlights();
+        openReader(currentBook,currentChapter);
+      };
+      document.getElementById("noteVerseButton").onclick=()=>{
+        if(!selectedVerse)return;
+        const ref=`${selectedVerse.book} ${selectedVerse.chapter}:${selectedVerse.verse}`;
+        notesText+=(notesText.trim()?"\n\n":"")+`${ref} — ${selectedVerse.text}`;
+        persistNotes(); showNotepad();
+      };
+      setStatus("Read",`${book} ${label}`);
+    }
+    function showSearch() {
+      if (!requireBible()) return;
+      showView(`
+        <h2>Search the Bible</h2>
+        <div class="control-row">
+          <label for="searchMode"><b>Match:</b></label>
+          <select id="searchMode">
+            <option value="exact">Exact word or phrase</option>
+            <option value="like">Like / contains</option>
+            <option value="all">All words (any order)</option>
+          </select>
+          <input id="searchInput" type="search" placeholder="e.g. brother kingdom"
+            style="width:min(350px,70%)">
+          <button id="searchButton">Search</button>
+        </div>
+        <p class="muted">Exact matches a whole word or phrase. Like finds text containing your input. All words finds verses containing every entered word.</p>
+        <div id="searchResults"></div>`);
+      document.getElementById("searchButton").onclick = runSearch;
+      document.getElementById("searchInput").onkeydown = event => {
+        if (event.key === "Enter") runSearch();
+      };
+      document.getElementById("searchInput").focus();
+      setStatus("Search");
+    }
+
+    function runSearch() {
+      const query = document.getElementById("searchInput").value.trim();
+      const mode = document.getElementById("searchMode").value;
+      if (!query) { alert("Enter a word or phrase."); return; }
+      const verses = loadedBooks().flatMap(getVerses);
+      let results;
+      if (mode === "all") {
+        const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+        results = verses.filter(verse =>
+          terms.every(term => verse.text.toLowerCase().includes(term)));
+      } else if (mode === "like") {
+        const lowerQuery = query.toLowerCase();
+        results = verses.filter(verse => verse.text.toLowerCase().includes(lowerQuery));
+      } else {
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(
+          `(^|[^\\p{L}\\p{N}_])${escapedQuery}(?=$|[^\\p{L}\\p{N}_])`, "iu");
+        results = verses.filter(verse => pattern.test(verse.text));
+      }
+      setStatus("Search", `“${query}”`);
+      document.getElementById("searchResults").innerHTML =
+        `<h3>${results.length} result(s)</h3>` +
+        (results.length ? results.map(verse => `
+          <div class="result"><span class="result-ref">${esc(verse.book)} ${esc(verse.chapter)}:${esc(verse.verse)}</span>
+          — ${esc(verse.text)}</div>`).join("") : "<p>No matching verses found.</p>");
+    }
+
+    function showCloud() {
+      if (!requireBible()) return;
+      const options = loadedBooks().map(book =>
+        `<option value="${esc(book)}">${esc(book)}</option>`).join("");
+      showView(`
+        <h2>Word Cloud</h2>
+        <div class="control-row">
+          <label><b>Book:</b> <select id="cloudBook"><option value="all">Entire Bible</option>${options}</select></label>
+          <label><b>Maximum words:</b> <select id="cloudMax">
+            <option>40</option><option selected>60</option><option>80</option><option>100</option>
+          </select></label>
+          <button id="generateCloud">Generate</button>
+        </div>
+        <div class="cloud-layout">
+          <div><canvas id="cloudCanvas" width="720" height="410"></canvas></div>
+          <aside class="cloud-side"><b>Excluded common words</b>
+            <p class="muted">These words are removed to emphasize distinctive terms.</p>
+            <ul id="removedWords"></ul>
+          </aside>
+        </div>`);
+      document.getElementById("generateCloud").onclick = generateCloud;
+      generateCloud();
+      setStatus("Word Cloud");
+    }
+
+    function generateCloud() {
+      const selectedBook = document.getElementById("cloudBook").value;
+      const targetBooks = selectedBook === "all" ? loadedBooks() : [selectedBook];
+      const text = targetBooks.flatMap(getVerses).map(verse => verse.text).join(" ");
+      const counts = {};
+      const removedWords = new Set();
+      for (const word of text.toLowerCase().match(/[\p{L}']+/gu) || []) {
+        if (STOP_WORDS.has(word)) removedWords.add(word);
+        else if (word.length > 2) counts[word] = (counts[word] || 0) + 1;
+      }
+      const words = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, Number(document.getElementById("cloudMax").value));
+      document.getElementById("removedWords").innerHTML =
+        [...removedWords].sort().map(word => `<li>${esc(word)}</li>`).join("") || "<li>None</li>";
+
+      const canvas = document.getElementById("cloudCanvas");
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      if (!words.length) {
+        context.fillStyle = "#000";
+        context.font = "18px Tahoma";
+        context.fillText("No words to display.", 20, 35);
+        return;
+      }
+      const maximum = words[0][1];
+      const minimum = words[words.length - 1][1];
+      const placed = [];
+      words.forEach(([word, count], index) => {
+        const size = Math.round(15 + (37 * (count - minimum)) / Math.max(1, maximum - minimum));
+        context.font = `bold ${size}px Arial`;
+        const width = context.measureText(word).width;
+        for (let step = 0; step < 700; step++) {
+          const angle = step * 0.34 + index * 2.4;
+          const radius = 3 + step * 0.85;
+          const x = canvas.width / 2 + Math.cos(angle) * radius - width / 2;
+          const y = canvas.height / 2 + Math.sin(angle) * radius;
+          const box = { x, y: y - size, w: width, h: size * 1.25 };
+          if (x < 4 || y < size || x + width > canvas.width - 4 || y > canvas.height - 4) continue;
+          const overlaps = placed.some(item =>
+            box.x < item.x + item.w + 3 && box.x + box.w + 3 > item.x &&
+            box.y < item.y + item.h + 3 && box.y + box.h + 3 > item.y);
+          if (overlaps) continue;
+          context.fillStyle = `hsl(${(index * 43 + 210) % 360}, 65%, 34%)`;
+          context.fillText(word, x, y);
+          placed.push(box);
+          break;
+        }
+      });
+    }
+
+    function showStats() {
+      if (!requireBible()) return;
+      const data = loadedBooks().map(book => {
+        const chapters = bible[book].chapters || [];
+        const verses = getVerses(book);
+        const words = verses.reduce((total, verse) =>
+          total + (verse.text.match(/[\p{L}\d']+/gu) || []).length, 0);
+        return { book, chapters: chapters.length, verses: verses.length, words };
+      });
+      const totals = data.reduce((sum, item) => ({
+        chapters: sum.chapters + item.chapters,
+        verses: sum.verses + item.verses,
+        words: sum.words + item.words
+      }), { chapters: 0, verses: 0, words: 0 });
+      showView(`
+        <h2>Bible Statistics</h2>
+        <p><b>${data.length}</b> books &nbsp; | &nbsp;
+        <b>${totals.chapters.toLocaleString()}</b> chapters &nbsp; | &nbsp;
+        <b>${totals.verses.toLocaleString()}</b> verses &nbsp; | &nbsp;
+        <b>${totals.words.toLocaleString()}</b> words</p>
+        <div class="stats-scroll"><table class="stats-table">
+          <thead><tr><th>Book</th><th>Chapters</th><th>Verses</th><th>Words</th></tr></thead>
+          <tbody>${data.map(item => `<tr><td>${esc(item.book)}</td><td>${item.chapters}</td>
+            <td>${item.verses.toLocaleString()}</td><td>${item.words.toLocaleString()}</td></tr>`).join("")}
+          </tbody></table></div>`);
+      setStatus("Statistics");
+    }
+
+    function persistNotes() {
+      localStorage.setItem("bibleViewerNotes", notesText);
+      const noteStatus = document.getElementById("noteStatus");
+      if (noteStatus) noteStatus.textContent = notesHandle
+        ? "Saved to the selected notes file (and kept in browser storage)."
+        : "Saved in this browser. Choose a destination to save a file.";
+      if (notesHandle) writeNotesToHandle();
+    }
+
+    async function writeNotesToHandle() {
+      try {
+        const writable = await notesHandle.createWritable();
+        await writable.write(notesText);
+        await writable.close();
+        const noteStatus = document.getElementById("noteStatus");
+        if (noteStatus) noteStatus.textContent = "Saved to the selected notes file.";
+      } catch (error) {
+        console.error("Could not write notes file:", error);
+        const noteStatus = document.getElementById("noteStatus");
+        if (noteStatus) noteStatus.textContent =
+          "Could not write to that file. Check the browser's file permission.";
+      }
+    }
+
+    async function chooseNotesDestination() {
+      if (!window.showSaveFilePicker) {
+        alert("This browser does not support choosing a save location here. Use Download notes instead.");
+        return;
+      }
+      try {
+        notesHandle = await window.showSaveFilePicker({
+          suggestedName: "Bible-Viewer-Notes.txt",
+          types: [{ description: "Text file", accept: { "text/plain": [".txt"] } }]
+        });
+        await writeNotesToHandle();
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error(error);
+          alert("The notes file could not be selected or saved.");
+        }
+      }
+    }
+
+    function downloadNotes() {
+      const blob = new Blob([notesText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Bible-Viewer-Notes.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function showNotepad() {
+      showView(`
+        <h2>Notepad</h2>
+        <p>Notes are saved automatically in this browser. Choose a file destination to save a copy there, or download/import a text file.</p>
+        <div class="note-toolbar">
+          <button id="chooseNotesDestination">Choose save destination…</button>
+          <button id="downloadNotes">Download notes</button>
+          <button data-action="importNotes">Import notepad…</button>
+        </div>
+        <label for="notesText"><b>Your notes</b></label>
+        <textarea class="notes-area" id="notesText" placeholder="Write your notes here…">${esc(notesText)}</textarea>
+        <p class="note-status" id="noteStatus">Saved in this browser.</p>`);
+      const textarea = document.getElementById("notesText");
+      textarea.addEventListener("input", () => {
+        notesText = textarea.value;
+        persistNotes();
+      });
+      document.getElementById("chooseNotesDestination").onclick = chooseNotesDestination;
+      document.getElementById("downloadNotes").onclick = downloadNotes;
+      setStatus("Notepad");
+    }
+
+    function importNotes() { notesPicker.click(); }
+    notesPicker.addEventListener("change", async () => {
+      const file = notesPicker.files[0];
+      if (!file) return;
+      try {
+        notesText = await file.text();
+        notesHandle = null;
+        localStorage.setItem("bibleViewerNotes", notesText);
+        showNotepad();
+        const noteStatus = document.getElementById("noteStatus");
+        if (noteStatus) noteStatus.textContent = "Imported and saved in this browser. Choose a destination or download to save a file.";
+      } catch (error) {
+        console.error(error);
+        alert("Could not import that notepad file.");
+      }
+      notesPicker.value = "";
+    });
+
+    function showAbout() {
+      showView(`
+        <h2>About Bible Viewer</h2>
+        <p>Bible Viewer — browse, search, and explore the Bible.</p>
+        <h3>PGP-signed statement</h3>
+        <pre>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Hi there, wary traveller. I hope this finds you well.
+Please, stay awhile and rest.
+- - oSean_TheSon
+
+-----BEGIN PGP SIGNATURE-----
+iHUEARYKAB0WIQTfKORVvkexYsAMNvcqt8q3Xg5KmAUCawNKyQAKCRAqt8q3Xg5K
+mM4LAP0f+hOXGSn53aNnOAzsxe1n7Cu+UPJWtknOq+Yh2ATgaQD/TANi2h6oWGRR
+9DbCppT5I1w5x98wTs4TLE27L+0pjAM=
+=nJFy
+-----END PGP SIGNATURE-----</pre>
+        <p><a href="./about.txt.asc" download>Download the signed file</a></p>`);
+      setStatus("About");
+    }
+
+    function closeMenus() {
+      document.querySelectorAll(".dropdown").forEach(menu => menu.classList.remove("open"));
+      document.querySelectorAll(".menu-button").forEach(button =>
+        button.setAttribute("aria-expanded", "false"));
+    }
+    function closeBeginMenu() {
+      beginMenu.classList.remove("open");
+      beginButton.setAttribute("aria-expanded", "false");
+    }
+
+    function doAction(action) {
+      closeMenus();
+      closeBeginMenu();
+      if (action === "load") folderPicker.click();
+      else if (action === "home") renderHome();
+      else if (action === "contents") showContents();
+      else if (action === "read") openReader();
+      else if (action === "search") showSearch();
+      else if (action === "random") showRandomVerse();
+      else if (action === "cloud") showCloud();
+      else if (action === "stats") showStats();
+      else if (action === "notepad") showNotepad();
+      else if (action === "importNotes") importNotes();
+      else if (action === "about") showAbout();
+    }
+
+    document.querySelectorAll(".menu-button").forEach(button => {
+      button.onclick = event => {
+        event.stopPropagation();
+        const menu = document.getElementById(button.dataset.menu);
+        const wasOpen = menu.classList.contains("open");
+        closeMenus();
+        if (!wasOpen) {
+          menu.classList.add("open");
+          button.setAttribute("aria-expanded", "true");
+        }
+      };
+    });
+
+    document.addEventListener("click", event => {
+      const actionElement = event.target.closest("[data-action]");
+      if (actionElement) doAction(actionElement.dataset.action);
+      else if (!event.target.closest(".menu-wrap")) closeMenus();
+      if (!event.target.closest(".begin-menu") && !event.target.closest("#beginButton")) {
+        closeBeginMenu();
+      }
+    });
+    beginButton.addEventListener("click", event => {
+      event.stopPropagation();
+      const isOpen = beginMenu.classList.toggle("open");
+      beginButton.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    const helperButton = document.getElementById("helperButton");
+    const helperBubble = document.getElementById("helperBubble");
+
+    helperButton.onclick = () => {
+      const isOpen = helperBubble.classList.toggle("open");
+      helperButton.setAttribute("aria-expanded", String(isOpen));
+    };
+
+    renderHome();
+  </script>
+</body>
+</html>
+
+
